@@ -1,0 +1,324 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Name Place Animal Thing</title>
+<script src="/socket.io/socket.io.js"></script>
+
+<style>
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    text-align: center;
+    background: #f7f7f7;
+    color: #333;
+    margin: 0;
+    padding: 0;
+}
+h1 { margin-top: 20px; }
+input, button {
+    padding: 10px;
+    margin: 5px;
+    border-radius: 5px;
+    border: 1px solid #ccc;
+}
+button {
+    cursor: pointer;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+}
+button:hover { background-color: #45a049; }
+
+#game, #answers, #scoring, #leaderboard { display: none; margin-top: 20px; }
+
+.container {
+    max-width: 800px;
+    margin: auto;
+    padding: 20px;
+    background: white;
+    border-radius: 10px;
+    box-shadow: 0px 4px 15px rgba(0,0,0,0.1);
+}
+
+#wheelContainer {
+    margin: 20px auto;
+    width: 200px;
+    height: 200px;
+    border-radius: 50%;
+    border: 10px solid #4CAF50;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 48px;
+    font-weight: bold;
+    color: #4CAF50;
+    user-select: none;
+    transition: transform 3s cubic-bezier(0.33, 1, 0.68, 1);
+}
+
+.score-card-vertical {
+    margin: 20px auto;
+    padding: 20px;
+    max-width: 420px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    text-align: left;
+}
+
+.score-header {
+    display: flex;
+    justify-content: space-between;
+    font-weight: bold;
+    border-bottom: 2px solid #ddd;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+}
+
+.score-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin: 10px 0;
+}
+
+.score-row button {
+    width: 28px;
+    height: 28px;
+    font-size: 16px;
+}
+
+.score-total {
+    margin-top: 15px;
+    font-size: 18px;
+    border-top: 2px solid #ddd;
+    padding-top: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Name • Place • Animal • Thing</h1>
+
+<div class="container" id="roomSetup">
+    <input id="playerName" placeholder="Your name"><br>
+    <button onclick="createRoom()">Create Room</button><br><br>
+    <input id="joinCode" placeholder="Room code">
+    <button onclick="joinRoom()">Join Room</button>
+</div>
+
+<div class="container" id="game">
+    <h2>Room: <span id="roomCodeDisplay"></span></h2>
+    <div id="playerList"></div>
+    <div id="wheelContainer">🎯</div>
+    <button onclick="startGame()">Start Game</button>
+</div>
+
+<div class="container" id="answers">
+    <h2>Letter: <span id="letter"></span></h2>
+    <input id="name" placeholder="Name"><br>
+    <input id="place" placeholder="Place"><br>
+    <input id="animal" placeholder="Animal"><br>
+    <input id="thing" placeholder="Thing"><br>
+    <button onclick="submitAnswers()">Submit</button>
+</div>
+
+<div class="container" id="scoring">
+    <h2 id="scoringTitle">
+        You are scoring for <span id="scoringPlayer" style="color:#2196f3"></span>!
+    </h2>
+
+    <div class="score-card-vertical">
+        <div class="score-header">
+            <span id="scorePlayerName"></span>
+            <span>Score</span>
+        </div>
+
+        <div class="score-row">
+            <span>Name: <span id="ansName">-</span></span>
+            <div>
+                <button onclick="changeScore('name', -1)">-</button>
+                <span id="scoreName">0</span>
+                <button onclick="changeScore('name', 1)">+</button>
+            </div>
+        </div>
+
+        <div class="score-row">
+            <span>Place: <span id="ansPlace">-</span></span>
+            <span id="scorePlace">0</span>
+        </div>
+
+        <div class="score-row">
+            <span>Animal: <span id="ansAnimal">-</span></span>
+            <span id="scoreAnimal">0</span>
+        </div>
+
+        <div class="score-row">
+            <span>Thing: <span id="ansThing">-</span></span>
+            <span id="scoreThing">0</span>
+        </div>
+
+        <div class="score-total">
+            Total Score: <b><span id="totalScore">0</span></b>
+        </div>
+    </div>
+
+    <button style="margin-top:20px" onclick="submitScores()">Submit</button>
+</div>
+
+<div class="container" id="leaderboard">
+    <h2>Leaderboard</h2>
+    <div id="leaderboardData"></div>
+</div>
+
+<script>
+const socket = io();
+
+let myId = '';
+let currentRoom = '';
+let currentLetter = '';
+let wheelSpinning = false;
+
+let scores = {};
+let scoringQueue = [];
+let scoringIndex = 0;
+let currentScoringPlayer = '';
+
+let categoryScores = { name:0, place:0, animal:0, thing:0 };
+
+socket.on('connect', () => myId = socket.id);
+
+/* ROOM */
+function createRoom() {
+    socket.emit('createRoom', playerName.value, code => {
+        currentRoom = code;
+        roomCodeDisplay.innerText = code;
+        roomSetup.style.display = 'none';
+        game.style.display = 'block';
+    });
+}
+
+function joinRoom() {
+    socket.emit('joinRoom', joinCode.value.toUpperCase(), playerName.value, ok => {
+        if (!ok) return alert('Room not found');
+        currentRoom = joinCode.value.toUpperCase();
+        roomCodeDisplay.innerText = currentRoom;
+        roomSetup.style.display = 'none';
+        game.style.display = 'block';
+    });
+}
+
+socket.on('playerList', players => {
+    playerList.innerText = 'Players: ' + players.map(p => p.name).join(', ');
+});
+
+/* GAME */
+function startGame() {
+    socket.emit('startGame', currentRoom);
+}
+
+socket.on('gameStarted', letterFromServer => {
+    currentLetter = letterFromServer;
+    spinWheel(currentLetter);
+
+    setTimeout(() => {
+        game.style.display = 'none';
+        answers.style.display = 'block';
+        letter.innerText = currentLetter;
+    }, 3000);
+});
+
+/* WHEEL */
+function spinWheel(letter) {
+    if (wheelSpinning) return;
+    wheelSpinning = true;
+
+    const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const angle = 360 * 5 + letters.indexOf(letter) * (360 / 26);
+
+    wheelContainer.style.transform = `rotate(${angle}deg)`;
+
+    setTimeout(() => {
+        wheelContainer.innerText = letter;
+        wheelSpinning = false;
+    }, 3000);
+}
+
+/* ANSWERS */
+function submitAnswers() {
+    socket.emit('submitAnswers', currentRoom, {
+        name: name.value,
+        place: place.value,
+        animal: animal.value,
+        thing: thing.value
+    });
+    answers.style.display = 'none';
+}
+
+/* SCORING */
+socket.on('goToScoring', allAnswers => {
+    scoringQueue = allAnswers.filter(p => p.playerId !== myId);
+    scoringIndex = 0;
+    scores = {};
+    scoring.style.display = 'block';
+    showNextPlayer();
+});
+
+function showNextPlayerToScore() {
+    if (scoringIndex >= scoringQueue.length) {
+        socket.emit('submitScores', currentRoom, scores);
+        scoring.style.display = 'none';
+        return;
+    }
+
+    const p = scoringQueue[scoringIndex];
+    currentScoringPlayer = p.playerId;
+
+    scoringPlayer.innerText = p.name;
+    scorePlayerName.innerText = p.name;
+
+    ansName.innerText = p.answers?.name || '-';
+    ansPlace.innerText = p.answers?.place || '-';
+    ansAnimal.innerText = p.answers?.animal || '-';
+    ansThing.innerText = p.answers?.thing || '-';
+
+    categoryScores = { name: 0, place: 0, animal: 0, thing: 0 };
+    scoreName.innerText = 0;
+    scorePlace.innerText = 0;
+    scoreAnimal.innerText = 0;
+    scoreThing.innerText = 0;
+    totalScore.innerText = 0;
+}
+function changeScore(cat, delta) {
+    categoryScores[cat] = Math.max(0, Math.min(10, categoryScores[cat] + delta));
+    updateScoreUI();
+}
+
+function updateScoreUI() {
+    scoreName.innerText = categoryScores.name;
+    scorePlace.innerText = categoryScores.place;
+    scoreAnimal.innerText = categoryScores.animal;
+    scoreThing.innerText = categoryScores.thing;
+    totalScore.innerText = Object.values(categoryScores).reduce((a,b)=>a+b,0);
+}
+
+function submitScores() {
+    scores[currentScoringPlayer] =
+        Object.values(categoryScores).reduce((a,b)=>a+b,0);
+    scoringIndex++;
+    showNextPlayer();
+}
+
+/* LEADERBOARD */
+socket.on('finalResults', data => {
+    leaderboard.style.display = 'block';
+    leaderboardData.innerHTML = '';
+    data.forEach(p => {
+        leaderboardData.innerHTML += `<p><b>${p.name}</b>: ${p.score}</p>`;
+    });
+});
+</script>
+
+</body>
+</html>
