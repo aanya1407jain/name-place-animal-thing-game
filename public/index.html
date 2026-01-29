@@ -146,17 +146,29 @@ button:hover { background-color: #45a049; }
 
         <div class="score-row">
             <span>Place: <span id="ansPlace">-</span></span>
-            <span id="scorePlace">0</span>
+            <div>
+                <button onclick="changeScore('name', -1)">-</button>
+                <span id="scoreName">0</span>
+                <button onclick="changeScore('name', 1)">+</button>
+            </div>
         </div>
 
         <div class="score-row">
             <span>Animal: <span id="ansAnimal">-</span></span>
-            <span id="scoreAnimal">0</span>
+            <div>
+                <button onclick="changeScore('name', -1)">-</button>
+                <span id="scoreName">0</span>
+                <button onclick="changeScore('name', 1)">+</button>
+            </div>
         </div>
 
         <div class="score-row">
             <span>Thing: <span id="ansThing">-</span></span>
-            <span id="scoreThing">0</span>
+            <div>
+                <button onclick="changeScore('name', -1)">-</button>
+                <span id="scoreName">0</span>
+                <button onclick="changeScore('name', 1)">+</button>
+            </div>
         </div>
 
         <div class="score-total">
@@ -321,4 +333,9 @@ socket.on('finalResults', data => {
 </script>
 
 </body>
+</html>
+</script>
+
+</body>
+
 </html>
